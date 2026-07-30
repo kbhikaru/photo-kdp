@@ -47,6 +47,8 @@ export async function buildPhoto(dropped: DroppedFile, propertyId: string): Prom
     propertyId,
     fileName: file.name,
     description: guessDescription(file.name),
+    status: '',
+    memo: '',
     takenAt,
     addedAt: new Date().toISOString(),
     originalExt: getExt(file.name),

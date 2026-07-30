@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import type { Photo, Property } from '../types';
+import { UNSET_STATUS_LABEL, statusSortKey } from './statusOptions';
 
 const PAGE_W = 210; // A4 mm
 const MARGIN = 12;
@@ -15,33 +16,49 @@ const CELL_H = PHOTO_H + CAPTION_H;
 
 const RENDER_DPI = 150;
 
-/** 物件ごとにグループ化し、写真は撮影日順、1ページあたり最大6枚で自動改ページする。 */
+/**
+ * 物件ごと・ステータス（施工セクション）ごとにグループ化する。
+ * ステータスは指定の工程順に並び、写真は撮影日順、1ページあたり最大6枚で自動改ページする。
+ * セクションが変わるたびに新しいページから始める。
+ */
 export async function exportLedgerPdf(photos: Photo[], properties: Property[]): Promise<Blob> {
   const propertyNameById = new Map(properties.map((p) => [p.id, p.name]));
-  const grouped = groupBy(photos, (p) => p.propertyId);
+  const propertyGroups = groupBy(photos, (p) => p.propertyId);
 
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   let isFirstPage = true;
   const perPage = COLS * ROWS;
 
-  for (const [propertyId, list] of grouped) {
+  const sortedPropertyIds = [...propertyGroups.keys()].sort((a, b) =>
+    (propertyNameById.get(a) ?? '').localeCompare(propertyNameById.get(b) ?? '', 'ja'),
+  );
+
+  for (const propertyId of sortedPropertyIds) {
     const propertyName = propertyNameById.get(propertyId) ?? '未分類';
-    const sorted = [...list].sort((a, b) => a.takenAt.localeCompare(b.takenAt));
-    const pageCount = Math.max(1, Math.ceil(sorted.length / perPage));
+    const statusGroups = groupBy(propertyGroups.get(propertyId) ?? [], (p) => p.status || '');
+    const sortedStatusKeys = [...statusGroups.keys()].sort(
+      (a, b) => statusSortKey(a) - statusSortKey(b) || a.localeCompare(b, 'ja'),
+    );
 
-    for (let page = 0; page < pageCount; page++) {
-      if (!isFirstPage) doc.addPage();
-      isFirstPage = false;
+    for (const status of sortedStatusKeys) {
+      const sorted = [...(statusGroups.get(status) ?? [])].sort((a, b) => a.takenAt.localeCompare(b.takenAt));
+      const pageCount = Math.max(1, Math.ceil(sorted.length / perPage));
+      const sectionTitle = `${propertyName} ${status || UNSET_STATUS_LABEL}`;
 
-      drawHeader(doc, propertyName, page + 1, pageCount);
+      for (let page = 0; page < pageCount; page++) {
+        if (!isFirstPage) doc.addPage();
+        isFirstPage = false;
 
-      const pagePhotos = sorted.slice(page * perPage, (page + 1) * perPage);
-      for (let i = 0; i < pagePhotos.length; i++) {
-        const col = i % COLS;
-        const row = Math.floor(i / COLS);
-        const x = MARGIN + col * (CELL_W + GAP);
-        const y = MARGIN + HEADER_H + row * (CELL_H + GAP);
-        await drawPhotoCell(doc, pagePhotos[i], x, y);
+        drawHeader(doc, sectionTitle, page + 1, pageCount);
+
+        const pagePhotos = sorted.slice(page * perPage, (page + 1) * perPage);
+        for (let i = 0; i < pagePhotos.length; i++) {
+          const col = i % COLS;
+          const row = Math.floor(i / COLS);
+          const x = MARGIN + col * (CELL_W + GAP);
+          const y = MARGIN + HEADER_H + row * (CELL_H + GAP);
+          await drawPhotoCell(doc, pagePhotos[i], x, y);
+        }
       }
     }
   }
@@ -49,10 +66,10 @@ export async function exportLedgerPdf(photos: Photo[], properties: Property[]): 
   return doc.output('blob');
 }
 
-function drawHeader(doc: jsPDF, propertyName: string, page: number, pageCount: number): void {
+function drawHeader(doc: jsPDF, sectionTitle: string, page: number, pageCount: number): void {
   doc.setFontSize(14);
   doc.setTextColor(20);
-  doc.text(`${propertyName} 写真台帳`, MARGIN, MARGIN);
+  doc.text(`${sectionTitle} 写真台帳`, MARGIN, MARGIN);
   doc.setFontSize(9);
   doc.setTextColor(90);
   doc.text(`${page} / ${pageCount} ページ`, PAGE_W - MARGIN, MARGIN, { align: 'right' });

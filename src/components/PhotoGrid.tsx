@@ -1,5 +1,6 @@
 import type { Photo, Property } from '../types';
 import { PhotoCard } from './PhotoCard';
+import { STATUS_DATALIST_ID, STATUS_OPTIONS, UNSET_STATUS_LABEL, statusSortKey } from '../lib/statusOptions';
 
 interface Props {
   photos: Photo[];
@@ -10,40 +11,74 @@ interface Props {
 
 export function PhotoGrid({ photos, properties, onChangePhoto, onDeletePhoto }: Props) {
   if (photos.length === 0) {
-    return <p className="empty-state">写真がありません。上のエリアにドラッグ&ドロップしてください。</p>;
+    return (
+      <>
+        <StatusDatalist />
+        <p className="empty-state">写真がありません。上のエリアにドラッグ&ドロップしてください。</p>
+      </>
+    );
   }
 
   const propertyNameById = new Map(properties.map((p) => [p.id, p.name]));
-  const groups = groupBy(photos, (p) => p.propertyId);
-  const sortedGroupKeys = [...groups.keys()].sort((a, b) =>
+  const propertyGroups = groupBy(photos, (p) => p.propertyId);
+  const sortedPropertyIds = [...propertyGroups.keys()].sort((a, b) =>
     (propertyNameById.get(a) ?? '').localeCompare(propertyNameById.get(b) ?? '', 'ja'),
   );
 
   return (
     <div className="photo-groups">
-      {sortedGroupKeys.map((propertyId) => {
-        const list = [...(groups.get(propertyId) ?? [])].sort((a, b) => a.takenAt.localeCompare(b.takenAt));
+      <StatusDatalist />
+      {sortedPropertyIds.map((propertyId) => {
+        const propertyPhotos = propertyGroups.get(propertyId) ?? [];
+        const statusGroups = groupBy(propertyPhotos, (p) => p.status || '');
+        const sortedStatusKeys = [...statusGroups.keys()].sort(
+          (a, b) => statusSortKey(a) - statusSortKey(b) || a.localeCompare(b, 'ja'),
+        );
+
         return (
           <section key={propertyId} className="photo-group">
             <h2 className="photo-group-title">
               {propertyNameById.get(propertyId) ?? '未分類'}
-              <span className="photo-group-count">{list.length}枚</span>
+              <span className="photo-group-count">{propertyPhotos.length}枚</span>
             </h2>
-            <div className="photo-grid">
-              {list.map((photo) => (
-                <PhotoCard
-                  key={photo.id}
-                  photo={photo}
-                  properties={properties}
-                  onChange={onChangePhoto}
-                  onDelete={onDeletePhoto}
-                />
-              ))}
-            </div>
+            {sortedStatusKeys.map((status) => {
+              const list = [...(statusGroups.get(status) ?? [])].sort((a, b) =>
+                a.takenAt.localeCompare(b.takenAt),
+              );
+              return (
+                <div key={status || '(none)'} className="status-group">
+                  <h3 className="status-group-title">
+                    {status || UNSET_STATUS_LABEL}
+                    <span className="photo-group-count">{list.length}枚</span>
+                  </h3>
+                  <div className="photo-grid">
+                    {list.map((photo) => (
+                      <PhotoCard
+                        key={photo.id}
+                        photo={photo}
+                        properties={properties}
+                        onChange={onChangePhoto}
+                        onDelete={onDeletePhoto}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </section>
         );
       })}
     </div>
+  );
+}
+
+function StatusDatalist() {
+  return (
+    <datalist id={STATUS_DATALIST_ID}>
+      {STATUS_OPTIONS.map((status) => (
+        <option key={status} value={status} />
+      ))}
+    </datalist>
   );
 }
 

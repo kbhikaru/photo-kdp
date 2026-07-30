@@ -9,6 +9,10 @@ export interface Photo {
   propertyId: string;
   fileName: string;
   description: string;
+  /** 施工写真のセクション（敷地現況写真、基礎配筋写真など）。自由入力も可。 */
+  status: string;
+  /** 自由記入のメモ */
+  memo: string;
   /** 撮影日 (YYYY-MM-DD)。EXIFから取得、無ければファイルの更新日時。 */
   takenAt: string;
   addedAt: string;

@@ -308,6 +308,33 @@
   color: var(--text-muted);
 }
 
+.status-group {
+  margin-bottom: 18px;
+}
+
+.status-group:last-child {
+  margin-bottom: 0;
+}
+
+.status-group-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.status-group-title::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
 .photo-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -393,6 +420,31 @@
   color: var(--text);
   font-size: 12px;
   width: 100%;
+}
+
+.photo-card-field {
+  font-size: 10px;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.photo-card-field input,
+.photo-card-field textarea {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  font-family: inherit;
+  width: 100%;
+}
+
+.photo-card-memo {
+  resize: vertical;
+  min-height: 32px;
 }
 
 .photo-card-footer {

@@ -10,7 +10,9 @@ export function filterPhotos(photos: Photo[], properties: Property[], query: str
       propertyName.includes(q) ||
       photo.description.toLowerCase().includes(q) ||
       photo.fileName.toLowerCase().includes(q) ||
-      photo.takenAt.includes(q)
+      photo.takenAt.includes(q) ||
+      (photo.status ?? '').toLowerCase().includes(q) ||
+      (photo.memo ?? '').toLowerCase().includes(q)
     );
   });
 }
