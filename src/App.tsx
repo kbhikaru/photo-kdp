@@ -90,7 +90,7 @@ export default function App() {
       let done = 0;
 
       const newPhotos = await mapWithConcurrency(dropped, 3, async (item, index) => {
-        const photo = await buildPhoto(item, propertyForIndex[index].id);
+        const photo = await buildPhoto(item, propertyForIndex[index].id, index);
 
         if (driveFolder) {
           try {
@@ -117,6 +117,12 @@ export default function App() {
   const handleChangePhoto = (updated: Photo) => {
     setPhotos((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     void savePhoto(updated);
+  };
+
+  const handleReorderPhotos = (updated: Photo[]) => {
+    const updatedById = new Map(updated.map((p) => [p.id, p]));
+    setPhotos((prev) => prev.map((p) => updatedById.get(p.id) ?? p));
+    updated.forEach((p) => void savePhoto(p));
   };
 
   const handleDeletePhoto = (id: string) => {
@@ -249,6 +255,7 @@ export default function App() {
             properties={properties}
             onChangePhoto={handleChangePhoto}
             onDeletePhoto={handleDeletePhoto}
+            onReorderPhotos={handleReorderPhotos}
           />
         </main>
       </div>

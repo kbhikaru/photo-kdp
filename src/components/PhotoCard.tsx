@@ -37,6 +37,9 @@ export function PhotoCard({ photo, properties, onChange, onDelete }: Props) {
   return (
     <div className="photo-card">
       <div className="photo-card-image">
+        <span className="drag-handle" title="ドラッグして並び替え" aria-hidden="true">
+          ⠿
+        </span>
         {url && <img src={url} alt={photo.description || photo.fileName} loading="lazy" />}
         {photo.savedToFolder && (
           <span className="badge badge-saved" title="ドライブの同期フォルダに保存済み">

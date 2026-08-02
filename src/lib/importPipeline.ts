@@ -34,7 +34,7 @@ export function resolvePropertyForFolder(
   };
 }
 
-export async function buildPhoto(dropped: DroppedFile, propertyId: string): Promise<Photo> {
+export async function buildPhoto(dropped: DroppedFile, propertyId: string, orderHint: number): Promise<Photo> {
   const { file } = dropped;
 
   const [takenAt, displayBlob] = await Promise.all([
@@ -51,6 +51,8 @@ export async function buildPhoto(dropped: DroppedFile, propertyId: string): Prom
     memo: '',
     takenAt,
     addedAt: new Date().toISOString(),
+    // 撮影日を基準にしつつ、同じ取り込み内での順序を保つための並び順の初期値
+    order: (Date.parse(takenAt) || 0) * 1000 + orderHint,
     originalExt: getExt(file.name),
     originalMimeType: file.type,
     displayBlob,

@@ -351,6 +351,23 @@
   flex-direction: column;
 }
 
+.photo-drag-item {
+  cursor: grab;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.photo-drag-item:active {
+  cursor: grabbing;
+}
+
+.photo-drag-item.is-dragging {
+  opacity: 0.4;
+}
+
+.photo-drag-item.is-dragging .photo-card {
+  border-color: var(--accent);
+}
+
 .photo-card-image {
   position: relative;
   width: 100%;
@@ -378,6 +395,19 @@
 
 .badge-saved {
   background: var(--ok);
+}
+
+.drag-handle {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  font-size: 13px;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  color: white;
+  letter-spacing: -1px;
 }
 
 .photo-card-body {

@@ -16,6 +16,8 @@ export interface Photo {
   /** 撮影日 (YYYY-MM-DD)。EXIFから取得、無ければファイルの更新日時。 */
   takenAt: string;
   addedAt: string;
+  /** 同じ物件・ステータス内での並び順（小さいほど先）。ドラッグ&ドロップで並び替え可能。 */
+  order: number;
   originalExt: string;
   originalMimeType: string;
   /** 台帳表示・PDF出力用（HEICはJPEGに変換済み） */
