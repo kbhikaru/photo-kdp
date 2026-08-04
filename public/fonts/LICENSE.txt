@@ -1,0 +1,10 @@
+IPAゴシック (ipag.ttf)
+
+Copyright (c) 2007-2011 Information-technology Promotion Agency, Japan.
+Licensed under the IPA Font License Agreement v1.0.
+https://moji.or.jp/ipafont/license/
+
+This font is bundled with the app so that Japanese text renders
+correctly in exported PDF ledgers (jsPDF's built-in fonts do not
+support Japanese characters). The IPA Font License permits
+redistribution and embedding, including inside generated documents.
