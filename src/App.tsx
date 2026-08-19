@@ -17,7 +17,7 @@ import {
 } from './lib/driveFolder';
 import { buildPhoto, mapWithConcurrency, resolvePropertyForFolder } from './lib/importPipeline';
 import { filterPhotos } from './lib/search';
-import { downloadPdf, exportLedgerPdf } from './lib/pdfExport';
+import { downloadPdf, exportLedgerPdf, type PdfFormat } from './lib/pdfExport';
 import { exportOriginalsAsZip } from './lib/zipExport';
 import { Dropzone } from './components/Dropzone';
 import { Toolbar } from './components/Toolbar';
@@ -169,12 +169,13 @@ export default function App() {
     [photos, selectedPropertyId],
   );
 
-  const handleExportPdf = async () => {
+  const handleExportPdf = async (format: PdfFormat) => {
     if (exportTargetPhotos.length === 0) return;
     setExportingPdf(true);
     try {
-      const blob = await exportLedgerPdf(exportTargetPhotos, properties);
-      downloadPdf(blob, `写真台帳_${todayStamp()}.pdf`);
+      const blob = await exportLedgerPdf(exportTargetPhotos, properties, format);
+      const formatLabel = format === 'imagesOnly' ? '画像のみ' : '詳細';
+      downloadPdf(blob, `写真台帳_${formatLabel}_${todayStamp()}.pdf`);
     } catch (err) {
       console.error('PDFの作成に失敗しました', err);
       window.alert('PDFの作成に失敗しました。');

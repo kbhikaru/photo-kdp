@@ -278,6 +278,14 @@
   cursor: not-allowed;
 }
 
+.pdf-format-select {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+}
+
 /* --- photo groups / grid --- */
 
 .empty-state {

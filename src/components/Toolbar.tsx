@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import type { PdfFormat } from '../lib/pdfExport';
+
 interface Props {
   query: string;
   onQueryChange: (query: string) => void;
@@ -5,7 +8,7 @@ interface Props {
   driveConnected: boolean;
   onConnectDrive: () => void;
   onExportZip: () => void;
-  onExportPdf: () => void;
+  onExportPdf: (format: PdfFormat) => void;
   exportingPdf: boolean;
   photoCount: number;
 }
@@ -21,6 +24,8 @@ export function Toolbar({
   exportingPdf,
   photoCount,
 }: Props) {
+  const [pdfFormat, setPdfFormat] = useState<PdfFormat>('detailed');
+
   return (
     <div className="toolbar">
       <input
@@ -40,10 +45,19 @@ export function Toolbar({
             元写真をZIPで保存
           </button>
         )}
+        <select
+          className="pdf-format-select"
+          value={pdfFormat}
+          onChange={(e) => setPdfFormat(e.target.value as PdfFormat)}
+          aria-label="台帳PDFの出力形式"
+        >
+          <option value="detailed">詳細あり</option>
+          <option value="imagesOnly">画像のみ</option>
+        </select>
         <button
           type="button"
           className="btn-primary"
-          onClick={onExportPdf}
+          onClick={() => onExportPdf(pdfFormat)}
           disabled={photoCount === 0 || exportingPdf}
         >
           {exportingPdf ? 'PDF作成中…' : '台帳PDFを出力'}

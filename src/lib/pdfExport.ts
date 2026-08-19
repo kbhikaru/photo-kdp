@@ -32,6 +32,19 @@ const INFO_ROWS: Array<{ label: string; field: 'no' | 'place' | 'type' | 'sectio
 
 const RENDER_DPI = 150;
 
+// --- 画像のみ形式 (横向き・1ページ2枚・文字情報なし) ---
+const IMAGES_ONLY_PAGE_W = 297; // A4横 mm
+const IMAGES_ONLY_PAGE_H = 210;
+const IMAGES_ONLY_MARGIN = 15;
+const IMAGES_ONLY_GAP = 10;
+const IMAGES_ONLY_PER_PAGE = 2;
+const IMAGES_ONLY_CONTENT_W = IMAGES_ONLY_PAGE_W - IMAGES_ONLY_MARGIN * 2;
+const IMAGES_ONLY_BOX_W = (IMAGES_ONLY_CONTENT_W - IMAGES_ONLY_GAP * (IMAGES_ONLY_PER_PAGE - 1)) / IMAGES_ONLY_PER_PAGE;
+const IMAGES_ONLY_BOX_H = IMAGES_ONLY_BOX_W * 0.75; // 4:3
+const IMAGES_ONLY_BOX_Y = IMAGES_ONLY_MARGIN + (IMAGES_ONLY_PAGE_H - IMAGES_ONLY_MARGIN * 2 - IMAGES_ONLY_BOX_H) / 2;
+
+export type PdfFormat = 'detailed' | 'imagesOnly';
+
 const JP_FONT_NAME = 'IPAGothic';
 let jpFontBase64Promise: Promise<string> | null = null;
 
@@ -53,12 +66,17 @@ function loadJapaneseFontBase64(): Promise<string> {
   return jpFontBase64Promise;
 }
 
+/** 選択された形式に応じて台帳PDFを組み立てる。 */
+export async function exportLedgerPdf(photos: Photo[], properties: Property[], format: PdfFormat = 'detailed'): Promise<Blob> {
+  return format === 'imagesOnly' ? exportImagesOnlyPdf(photos, properties) : exportDetailedPdf(photos, properties);
+}
+
 /**
  * 物件（工事名）ごとに、社内フォーマット（工事番号/報告日/工事名/会社名/注文者/報告者の
  * ヘッダー表 + 1ページ3枚の写真明細）でPDFを組み立てる。物件が変わるたびに新しいページ・
  * 新しい通し番号(NO)から始める。
  */
-export async function exportLedgerPdf(photos: Photo[], properties: Property[]): Promise<Blob> {
+async function exportDetailedPdf(photos: Photo[], properties: Property[]): Promise<Blob> {
   const propertyNameById = new Map(properties.map((p) => [p.id, p.name]));
   const propertyGroups = groupBy(photos, (p) => p.propertyId);
 
@@ -98,6 +116,42 @@ export async function exportLedgerPdf(photos: Photo[], properties: Property[]): 
         await drawPhotoBlock(doc, pagePhotos[i], propertyName, no, MARGIN, y);
       }
     }
+  }
+
+  return doc.output('blob');
+}
+
+/**
+ * 横向きA4に写真を1ページ2枚、大きく並べるだけの「画像のみ」形式。
+ * 文字情報は一切入れず、物件・ステータス・並び順で揃えた通りに写真だけを流し込む。
+ */
+async function exportImagesOnlyPdf(photos: Photo[], properties: Property[]): Promise<Blob> {
+  const propertyNameById = new Map(properties.map((p) => [p.id, p.name]));
+  const sorted = [...photos].sort((a, b) => {
+    const propertyCompare = (propertyNameById.get(a.propertyId) ?? '').localeCompare(
+      propertyNameById.get(b.propertyId) ?? '',
+      'ja',
+    );
+    return (
+      propertyCompare ||
+      statusSortKey(a.status) - statusSortKey(b.status) ||
+      a.status.localeCompare(b.status, 'ja') ||
+      a.order - b.order
+    );
+  });
+
+  const doc = new jsPDF({ unit: 'mm', format: [IMAGES_ONLY_PAGE_W, IMAGES_ONLY_PAGE_H], orientation: 'landscape' });
+  doc.setDrawColor(60);
+  doc.setLineWidth(0.2);
+
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && i % IMAGES_ONLY_PER_PAGE === 0) doc.addPage([IMAGES_ONLY_PAGE_W, IMAGES_ONLY_PAGE_H], 'landscape');
+
+    const slot = i % IMAGES_ONLY_PER_PAGE;
+    const x = IMAGES_ONLY_MARGIN + slot * (IMAGES_ONLY_BOX_W + IMAGES_ONLY_GAP);
+    const dataUrl = await renderFixedSizeJpeg(sorted[i].displayBlob, IMAGES_ONLY_BOX_W, IMAGES_ONLY_BOX_H);
+    doc.addImage(dataUrl, 'JPEG', x, IMAGES_ONLY_BOX_Y, IMAGES_ONLY_BOX_W, IMAGES_ONLY_BOX_H);
+    doc.rect(x, IMAGES_ONLY_BOX_Y, IMAGES_ONLY_BOX_W, IMAGES_ONLY_BOX_H);
   }
 
   return doc.output('blob');
