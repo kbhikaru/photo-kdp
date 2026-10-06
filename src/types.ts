@@ -31,3 +31,25 @@ export interface DroppedFile {
   file: File;
   topFolder: string | null;
 }
+
+export type HistoryAction =
+  | 'import'
+  | 'edit'
+  | 'delete'
+  | 'reorder'
+  | 'property_create'
+  | 'property_rename'
+  | 'property_delete'
+  | 'export_pdf';
+
+export interface HistoryEntry {
+  id: string;
+  /** ISO日時 */
+  timestamp: string;
+  /** 担当者名（未設定の場合は「未設定」） */
+  actor: string;
+  action: HistoryAction;
+  /** 画面に表示する内容の説明文 */
+  summary: string;
+  propertyId?: string;
+}

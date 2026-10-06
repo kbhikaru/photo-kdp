@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { v4 as uuid } from 'uuid';
-import type { DroppedFile, Photo, Property } from './types';
+import type { DroppedFile, HistoryEntry, Photo, Property } from './types';
 import {
   deletePhotoRecord,
   deletePropertyRecord,
@@ -19,10 +19,12 @@ import { buildPhoto, mapWithConcurrency, resolvePropertyForFolder } from './lib/
 import { filterPhotos } from './lib/search';
 import { downloadPdf, exportLedgerPdf, type PdfFormat } from './lib/pdfExport';
 import { exportOriginalsAsZip } from './lib/zipExport';
+import { getActorName, listHistory, recordHistory, setActorName } from './lib/history';
 import { Dropzone } from './components/Dropzone';
 import { Toolbar } from './components/Toolbar';
 import { PropertyPanel } from './components/PropertyPanel';
 import { PhotoGrid } from './components/PhotoGrid';
+import { HistoryPanel } from './components/HistoryPanel';
 import './App.css';
 
 const LAST_PROPERTY_KEY = 'photo-ledger:last-property-id';
@@ -37,14 +39,21 @@ export default function App() {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [actorName, setActorNameState] = useState('');
+  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[] | null>(null);
 
   const driveSupported = useMemo(() => isFileSystemAccessSupported(), []);
 
   useEffect(() => {
     (async () => {
-      const [loadedPhotos, loadedProperties] = await Promise.all([getAllPhotos(), getAllProperties()]);
+      const [loadedPhotos, loadedProperties, savedActorName] = await Promise.all([
+        getAllPhotos(),
+        getAllProperties(),
+        getActorName(),
+      ]);
       setPhotos(loadedPhotos);
       setProperties(loadedProperties);
+      setActorNameState(savedActorName);
 
       const lastId = localStorage.getItem(LAST_PROPERTY_KEY);
       if (lastId && loadedProperties.some((p) => p.id === lastId)) {
@@ -56,6 +65,18 @@ export default function App() {
       setLoaded(true);
     })();
   }, []);
+
+  const handleChangeActorName = async () => {
+    const next = window.prompt('担当者名を入力してください', actorName);
+    if (next === null) return;
+    const trimmed = next.trim();
+    setActorNameState(trimmed);
+    await setActorName(trimmed);
+  };
+
+  const openHistory = async () => {
+    setHistoryEntries(await listHistory());
+  };
 
   const selectProperty = (id: string | null) => {
     setSelectedPropertyId(id);
@@ -109,25 +130,45 @@ export default function App() {
 
       await Promise.all(newPhotos.map((p) => savePhoto(p)));
       setPhotos((prev) => [...prev, ...newPhotos]);
+
+      const countByNewPropertyId = new Map<string, number>();
+      for (const photo of newPhotos) {
+        countByNewPropertyId.set(photo.propertyId, (countByNewPropertyId.get(photo.propertyId) ?? 0) + 1);
+      }
+      for (const [propertyId, count] of countByNewPropertyId) {
+        await recordHistory(actorName, 'import', `写真を${count}枚取り込みました`, propertyId);
+      }
     } finally {
       setImporting(false);
     }
   };
 
   const handleChangePhoto = (updated: Photo) => {
+    const before = photos.find((p) => p.id === updated.id);
     setPhotos((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     void savePhoto(updated);
+    if (before) {
+      const summary = describePhotoChange(before, updated);
+      if (summary) void recordHistory(actorName, 'edit', summary, updated.propertyId);
+    }
   };
 
   const handleReorderPhotos = (updated: Photo[]) => {
     const updatedById = new Map(updated.map((p) => [p.id, p]));
     setPhotos((prev) => prev.map((p) => updatedById.get(p.id) ?? p));
     updated.forEach((p) => void savePhoto(p));
+    if (updated.length > 0) {
+      void recordHistory(actorName, 'reorder', '写真の並び替えを行いました', updated[0].propertyId);
+    }
   };
 
   const handleDeletePhoto = (id: string) => {
+    const target = photos.find((p) => p.id === id);
     setPhotos((prev) => prev.filter((p) => p.id !== id));
     void deletePhotoRecord(id);
+    if (target) {
+      void recordHistory(actorName, 'delete', `写真を削除しました：${target.fileName}`, target.propertyId);
+    }
   };
 
   const handleCreateProperty = (name: string) => {
@@ -135,6 +176,7 @@ export default function App() {
     setProperties((prev) => [...prev, property]);
     selectProperty(property.id);
     void saveProperty(property);
+    void recordHistory(actorName, 'property_create', `物件を追加しました：${name}`, property.id);
   };
 
   const handleRenameProperty = (id: string, name: string) => {
@@ -143,13 +185,18 @@ export default function App() {
     const updated = { ...property, name };
     setProperties((prev) => prev.map((p) => (p.id === id ? updated : p)));
     void saveProperty(updated);
+    void recordHistory(actorName, 'property_rename', `物件名を変更しました：${property.name} → ${name}`, id);
   };
 
   const handleDeleteProperty = (id: string) => {
+    const property = properties.find((p) => p.id === id);
     setProperties((prev) => prev.filter((p) => p.id !== id));
     setPhotos((prev) => prev.filter((p) => p.propertyId !== id));
     if (selectedPropertyId === id) selectProperty(null);
     void deletePropertyRecord(id);
+    if (property) {
+      void recordHistory(actorName, 'property_delete', `物件を削除しました：${property.name}`, id);
+    }
   };
 
   const handleConnectDrive = async () => {
@@ -176,6 +223,12 @@ export default function App() {
       const blob = await exportLedgerPdf(exportTargetPhotos, properties, format);
       const formatLabel = format === 'imagesOnly' ? '画像のみ' : '詳細';
       downloadPdf(blob, `写真台帳_${formatLabel}_${todayStamp()}.pdf`);
+      await recordHistory(
+        actorName,
+        'export_pdf',
+        `台帳PDFを出力しました（${formatLabel}・${exportTargetPhotos.length}枚）`,
+        selectedPropertyId ?? undefined,
+      );
     } catch (err) {
       console.error('PDFの作成に失敗しました', err);
       window.alert('PDFの作成に失敗しました。');
@@ -202,6 +255,8 @@ export default function App() {
     return map;
   }, [photos]);
 
+  const propertyNameById = useMemo(() => new Map(properties.map((p) => [p.id, p.name])), [properties]);
+
   if (!loaded) {
     return (
       <div className="app-loading">
@@ -216,6 +271,14 @@ export default function App() {
         <div>
           <h1>写真台帳</h1>
           <p className="app-subtitle">工事写真をドラッグ&ドロップして、物件ごとの台帳PDFを作成します</p>
+        </div>
+        <div className="app-header-actions">
+          <button type="button" className="actor-name-btn" onClick={handleChangeActorName}>
+            担当者: {actorName || '未設定'}
+          </button>
+          <button type="button" onClick={openHistory}>
+            作成履歴
+          </button>
         </div>
       </header>
 
@@ -260,8 +323,35 @@ export default function App() {
           />
         </main>
       </div>
+
+      {historyEntries !== null && (
+        <HistoryPanel
+          entries={historyEntries}
+          propertyNameById={propertyNameById}
+          onClose={() => setHistoryEntries(null)}
+        />
+      )}
     </div>
   );
+}
+
+function describePhotoChange(before: Photo, after: Photo): string | null {
+  if (before.description !== after.description) {
+    return `説明を編集しました：${after.description || '(空欄)'}`;
+  }
+  if (before.status !== after.status) {
+    return `ステータスを変更しました：${after.status || '(未設定)'}`;
+  }
+  if (before.memo !== after.memo) {
+    return 'メモを編集しました';
+  }
+  if (before.takenAt !== after.takenAt) {
+    return `撮影日を変更しました：${after.takenAt}`;
+  }
+  if (before.propertyId !== after.propertyId) {
+    return '写真の物件を変更しました';
+  }
+  return null;
 }
 
 function todayStamp(): string {

@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { Photo, Property } from '../types';
+import type { HistoryEntry, Photo, Property } from '../types';
 
 interface LedgerDB extends DBSchema {
   photos: {
@@ -15,18 +15,27 @@ interface LedgerDB extends DBSchema {
     key: string;
     value: unknown;
   };
+  history: {
+    key: string;
+    value: HistoryEntry;
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<LedgerDB>> | null = null;
 
 function getDB(): Promise<IDBPDatabase<LedgerDB>> {
   if (!dbPromise) {
-    dbPromise = openDB<LedgerDB>('photo-ledger', 1, {
-      upgrade(db) {
-        const photos = db.createObjectStore('photos', { keyPath: 'id' });
-        photos.createIndex('by-property', 'propertyId');
-        db.createObjectStore('properties', { keyPath: 'id' });
-        db.createObjectStore('settings');
+    dbPromise = openDB<LedgerDB>('photo-ledger', 2, {
+      upgrade(db, oldVersion) {
+        if (oldVersion < 1) {
+          const photos = db.createObjectStore('photos', { keyPath: 'id' });
+          photos.createIndex('by-property', 'propertyId');
+          db.createObjectStore('properties', { keyPath: 'id' });
+          db.createObjectStore('settings');
+        }
+        if (oldVersion < 2) {
+          db.createObjectStore('history', { keyPath: 'id' });
+        }
       },
     });
   }
@@ -73,4 +82,12 @@ export async function getSetting<T>(key: string): Promise<T | undefined> {
 
 export async function setSetting(key: string, value: unknown): Promise<void> {
   await (await getDB()).put('settings', value, key);
+}
+
+export async function getAllHistoryEntries(): Promise<HistoryEntry[]> {
+  return (await getDB()).getAll('history');
+}
+
+export async function addHistoryEntry(entry: HistoryEntry): Promise<void> {
+  await (await getDB()).put('history', entry);
 }
